@@ -1,0 +1,254 @@
+---
+title: "Predicting Your Chance of Admission for Masters using Linear Regression Model "
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+options(scipen = 9999)
+```
+
+# Data Dictionary
+- GRE Scores ( out of 340 )
+- TOEFL Scores ( out of 120 )
+- University Rating ( out of 5 )
+- Statement of Purpose and Letter of Recommendation Strength ( out of 5 )
+- Undergraduate GPA ( out of 10 )
+- Research Experience ( either 0 or 1 )
+- Chance of Admit ( ranging from 0 to 1 )
+
+
+# Setup and Data Import
+
+```{r message=FALSE}
+library(scales)
+library(dplyr)
+library(GGally)
+library(performance)
+library(car)
+library(MLmetrics)
+library(lmtest)
+```
+
+
+```{r}
+admission <- read.csv('AdmissionTrain.csv')
+head(admission)
+```
+
+```{r}
+summary(admission)
+```
+
+# Exploratory Data Analysis
+
+```{r}
+ggcorr(admission, label = T, hjust= 0.9)
+```
+Our Graphic shows that all of the variables indicating strong correlation with the target variable (Chance.of.Admit)
+
+```{r}
+anyNA(admission)
+```
+#Creating Model and Feature Selection
+
+Initial model using all prediction and no prediction
+```{r}
+init_model_all <- lm(Chance.of.Admit~., admission)
+init_model_none <- lm(Chance.of.Admit~1, admission)
+```
+
+Stepwise function using previous model
+```{r message=FALSE}
+backstep_model <- step(init_model_all, direction = 'backward')
+```
+
+```{r message=FALSE}
+forstep_model <- step(init_model_none, direction = 'forward', scope = list(lower = init_model_none, upper = init_model_all))
+```
+
+```{r}
+summary(backstep_model)
+summary(forstep_model)
+```
+Both Direction resulting same Adj.R-Squared Value and both model are putting the Serial.No to consideration for calculating chance of admission, we should remove it from the model.
+
+```{r}
+admission$scaledchance <- scale(admission$Chance.of.Admit)
+```
+
+
+```{r}
+admission_model <- lm(Chance.of.Admit ~ GRE.Score + University.Rating + TOEFL.Score + LOR + CGPA + Research, admission)
+summary(admission_model)
+```
+
+Our model now has lesser Adj.R-Square value, but still a good fit. also University.Rating is now an unsignificant predictor, it is safe to remove it.
+
+Regarding SOP, after many tries, i decided to not include SOP variable in the model,  not only after applying stepwise function in both direction, both model leaves SOP, also the function of SOP are also similiar with LOR, adding SOP to model also reduce model performance.
+
+Our Regression Model is :
+Chance.of.Admit ~ GRE.Score + University.Rating + TOEFL.Score + LOR + CGPA + Research
+
+```{r}
+admission_model <- lm(Chance.of.Admit ~ GRE.Score + TOEFL.Score + LOR + CGPA + Research, admission)
+summary(admission_model)
+```
+Interpretation :
+For every 1 point in GRE, the chance of admission will increase by 0.001782
+For every 1 point in TOEFL, the chance of admission will increase by 0.0030320
+For every 1 point in LOR, the chance of admission will increase by 0.0227762
+For every 1 point in CGPA, the chance of admission will increase by 0.1210042
+For every 1 point in Researcg, the chance of admission will increase by 0.0245769
+
+# Assumption Test
+
+## Linearity
+```{r}
+cor.test(admission$Chance.of.Admit, admission$GRE.Score)
+cor.test(admission$Chance.of.Admit, admission$TOEFL.Score)
+cor.test(admission$Chance.of.Admit, admission$LOR)
+cor.test(admission$Chance.of.Admit, admission$CGPA)
+cor.test(admission$Chance.of.Admit, admission$Research)
+```
+
+## Normality
+```{r}
+hist(admission_model$residuals)
+```
+
+Our visual shows bell curve with longer tail on the left side, mean we have outlier in our data, but i decide to leave it as it is because the amount is to low, hence why we have the bell curve. 
+
+```{r}
+shapiro.test(admission_model$residuals)
+```
+H1 = errors are not distributed normally
+
+As expected, the model did not pass the stastistical test.
+
+## Homoscedasticity
+
+```{r}
+plot(admission_model$fitted.values, admission_model$residuals)
+abline(h = 0, col = 'red')
+```
+
+```{r}
+bptest(admission_model)
+```
+With p-value < 0.05, we can conclude that heterocesdasticity is present.
+Our model did not pass Homoscedasticity test due to the outlier.
+
+however, just like our normality test, our visual did not catch a pattern. visually, it pass the test.
+
+## Multi Colinearity
+```{r}
+vif(admission_model)
+```
+no colinearity found.
+
+Assumption Test Result :
+Linearity : All predictor has p-value < 0.05. 
+Normality : Errors are distributed normally, transform the target variable. (Due to our data contained several outliers, i judged it based on visual)
+Homoscedasticity : Error are scaterred randomly (Due to our data contained several outliers, i judged it based on visual)
+Multi Colinearity : none of our predictor are correlated to each other.
+
+The model violate Normality and Homoscedasticity assumption test.
+
+```{r}
+hist(scale(admission$Chance.of.Admit))
+```
+
+
+# Evaluation
+
+```{r}
+test <- read.csv('AdmissionTest.csv')
+```
+
+```{r}
+test$prediction <- predict(admission_model, newdata = test)
+```
+
+
+## MAPE Train and Test
+```{r}
+# MAPE TRAIN
+MAPE(y_pred = admission_model$fitted.values, y_true=admission$Chance.of.Admit)
+```
+
+```{r}
+# MAPE TEST
+MAPE(y_pred = test$prediction, y_true=test$Chance.of.Admit)
+```
+
+## RMSE
+```{r}
+# RMSE TRAIN
+RMSE(y_pred = admission_model$fitted.values, y_true=admission$Chance.of.Admit)
+```
+```{r}
+# RMSE TRAIN
+RMSE(y_pred = test$prediction, y_true=test$Chance.of.Admit)
+```
+Error Value are very close and even less, we can assume that the predictions are very very close to the actual value.
+
+#Conclusion and Recommendation
+
+Conclussion :
+Our model is a good-fit (Adj.R-Square = 0.8)
+Train and Test error value are small, and its close to each other.
+
+Recommendation :
+Student who are planning to continue their study should work hard to get highest GPA possible(0-10), did a research and then try to acquire a strong letter of recomendatio, folllowed by TOELF Score and GRE Score to boost your chance of admission.
+
+```{r}
+admission_model$coefficients
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

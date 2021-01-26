@@ -1,0 +1,169 @@
+---
+title: "LBB Regression Model"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+options(scipen = 999)
+```
+
+
+Import Data.
+
+```{r}
+price <- read.csv('HousePrices_HalfMil.csv')
+price
+```
+
+
+Check Data dan Missing Value
+
+```{r}
+sum(is.na(price))
+```
+```{r}
+summary(price)
+```
+
+Check Korelasi.
+
+```{r}
+library(GGally)
+ggcorr(price, label = T, hjust = 0.9)
+```
+```{r}
+library(dplyr)
+price <- price %>% mutate(White.Marble = as.factor(White.Marble),
+                          Black.Marble =as.factor(Black.Marble),
+                          Indian.Marble =as.factor(Indian.Marble),
+                          Floors =as.factor(Floors),
+                          City =as.factor(City),
+                          Electric =as.factor(Electric),
+                          Fiber =as.factor(Fiber),
+                          Glass.Doors =as.factor(Glass.Doors),
+                          Swiming.Pool =as.factor(Swiming.Pool),
+                          Garden =as.factor(Garage),
+                          Solar = as.factor(Solar))
+```
+
+
+```{r}
+#create initial model 
+init_model_all <- lm(Prices~. , price)
+init_model_none <- lm(Prices~1 , price)
+```
+
+```{r}
+stepback_model <- step(init_model_all, direction = 'backward')
+```
+```{r}
+forstep_model <- step(init_model_none, direction = 'forward', scope = list(lower = init_model_none, upper = init_model_all))
+```
+Check summary kedua model diatas
+```{r}
+summary(stepback_model)
+summary(forstep_model)
+```
+
+Uji Multicolinearity
+```{r}
+library(car)
+vif(stepback_model)
+
+```
+Normality check
+```{r}
+library(performance)
+check_collinearity(stepback_model)
+check_heteroscedasticity(stepback_model)
+check_normality(stepback_model)
+```
+```{r}
+check_collinearity(forstep_model)
+check_heteroscedasticity(forstep_model)
+check_normality(forstep_model)
+```
+
+Linearity test
+
+```{r}
+cor.test(price$Prices, price$Garage)
+cor.test(price$Prices, price$FirePlace)
+cor.test(price$Prices, price$Baths)
+cor.test(price$Prices, price$White.Marble)
+cor.test(price$Prices, price$Black.Marble)
+cor.test(price$Prices, price$Indian.Marble)
+cor.test(price$Prices, price$Floors)
+cor.test(price$Prices, price$City)
+cor.test(price$Prices, price$Solar)
+cor.test(price$Prices, price$Electric)
+cor.test(price$Prices, price$Fiber)
+cor.test(price$Prices, price$Glass.Doors)
+cor.test(price$Prices, price$Swiming.Pool)
+cor.test(price$Prices, price$Garden)
+cor.test(price$Prices, price$Area)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
